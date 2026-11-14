@@ -450,18 +450,27 @@ export const fetchGameweekState = async (): Promise<GameweekInfo> => {
   const cached = getCachedGameweekState();
   if (cached) return cached;
 
+  const estimatedGw = getEstimatedSeasonGameweek();
+
   // Dynamic fallback based on calendar date if offline
   return {
     isLive: false,
-    recentGwId: 10,
-    recentGwName: 'Gameweek 10',
+    recentGwId: estimatedGw,
+    recentGwName: `Gameweek ${estimatedGw}`,
     isRecentFinished: true,
-    upcomingGwId: 11,
-    upcomingGwName: 'Gameweek 11',
+    upcomingGwId: Math.min(estimatedGw + 1, 38),
+    upcomingGwName: `Gameweek ${Math.min(estimatedGw + 1, 38)}`,
     deadlineIso: '',
     formattedDeadline: 'Saturday, 11:00',
     deadlineCountdown: 'Upcoming',
   };
+};
+
+export const getEstimatedSeasonGameweek = (): number => {
+  // 2024/25 Season kickoff: Aug 16, 2024
+  const seasonStart = new Date('2024-08-16T18:00:00Z').getTime();
+  const diffWeeks = Math.floor((Date.now() - seasonStart) / (7 * 24 * 60 * 60 * 1000)) + 1;
+  return Math.min(Math.max(diffWeeks, 1), 38);
 };
 
 // Fetch user team and all their classic leagues
@@ -650,7 +659,7 @@ export const fetchLeagueStandings = async (
       is_starred: true,
     };
 
-    const targetGw = activeGwId || getCachedGameweekState()?.recentGwId || 10;
+    const targetGw = activeGwId || getCachedGameweekState()?.recentGwId || getEstimatedSeasonGameweek();
 
     const members: LeagueMember[] = (data.standings?.results || []).map((entry, idx) => {
       const isUser = userTeamId ? entry.entry === userTeamId : idx === 0;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Swords, ChevronDown, Check, ArrowUp, ArrowDown, MessageSquare, Trophy, Zap } from 'lucide-react';
 import { LeagueMember } from '../types';
-import { GameweekInfo } from '../services/fplService';
+import { GameweekInfo, getEstimatedSeasonGameweek } from '../services/fplService';
 import { triggerHaptic } from '../services/haptics';
 import { sounds } from '../services/soundEffects';
 import { ClubCrest } from './ClubCrest';
@@ -30,7 +30,7 @@ export const H2HView: React.FC<H2HViewProps> = ({
 
   const gwLabel = gwInfo?.recentGwId 
     ? `GW ${gwInfo.recentGwId}` 
-    : (gwInfo?.recentGwName ? gwInfo.recentGwName.replace(/Gameweek\s*/i, 'GW ') : 'GW 10');
+    : (gwInfo?.recentGwName ? gwInfo.recentGwName.replace(/Gameweek\s*/i, 'GW ') : `GW ${getEstimatedSeasonGameweek()}`);
 
   // Identify user's team
   const myMember = members.find((m) => m.id === currentMemberId || m.is_starred) || members[0];

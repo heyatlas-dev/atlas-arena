@@ -20,6 +20,7 @@ import {
   fetchGameweekState,
   getCachedGameweekState,
   enrichLeagueMembersWithRealPicks,
+  getEstimatedSeasonGameweek,
   GameweekInfo,
 } from './services/fplService';
 import { fplBot } from './services/fplBotService';
@@ -143,7 +144,7 @@ export const App: React.FC = () => {
     if (!currentLeague || !currentLeague.fpl_league_id || currentLeague.fpl_league_id <= 0) return;
 
     let isCancelled = false;
-    const activeGw = gwInfo?.recentGwId || getCachedGameweekState()?.recentGwId || 10;
+    const activeGw = gwInfo?.recentGwId || getCachedGameweekState()?.recentGwId || getEstimatedSeasonGameweek();
 
     fetchLeagueStandings(currentLeague.fpl_league_id, userAccount?.teamId, activeGw)
       .then(async (res) => {
@@ -202,7 +203,7 @@ export const App: React.FC = () => {
 
   // Autonomous FPL Matchday Bot & Transfer Reveal Bot
   useEffect(() => {
-    const activeGw = gwInfo?.recentGwId || getCachedGameweekState()?.recentGwId || 10;
+    const activeGw = gwInfo?.recentGwId || getCachedGameweekState()?.recentGwId || getEstimatedSeasonGameweek();
     
     // 1. Start live matchday goal & card announcer
     fplBot.start(
@@ -262,7 +263,7 @@ export const App: React.FC = () => {
   }, [currentLeague.id, members.length]);
 
   useEffect(() => {
-    const activeGw = gwInfo?.recentGwId || getCachedGameweekState()?.recentGwId || 10;
+    const activeGw = gwInfo?.recentGwId || getCachedGameweekState()?.recentGwId || getEstimatedSeasonGameweek();
     fplBot.updateContext(currentLeague.id, members, activeGw);
   }, [currentLeague.id, members, gwInfo]);
 
@@ -616,7 +617,7 @@ export const App: React.FC = () => {
 
   // Trigger Gameweek Awards Ceremony in #banter
   const handleTriggerRecap = (force = true) => {
-    const activeGw = gwInfo?.recentGwId || getCachedGameweekState()?.recentGwId || 10;
+    const activeGw = gwInfo?.recentGwId || getCachedGameweekState()?.recentGwId || getEstimatedSeasonGameweek();
     const recapMsg = gameweekRecap.generateRecap(currentLeague.id, members, activeGw, force);
     if (recapMsg) {
       setMessages((prev) => [...prev, recapMsg]);
@@ -865,7 +866,7 @@ export const App: React.FC = () => {
           fplEntryId={viewingSquadMember?.entryId || 0}
           managerName={viewingSquadMember?.managerName || ''}
           teamName={viewingSquadMember?.teamName || ''}
-          gwId={gwInfo?.recentGwId || getCachedGameweekState()?.recentGwId || 10}
+          gwId={gwInfo?.recentGwId || getCachedGameweekState()?.recentGwId || getEstimatedSeasonGameweek()}
           onBattle={(entryId) => {
             const rival = members.find((m) => m.fpl_entry_id === entryId);
             if (rival) {
@@ -883,7 +884,7 @@ export const App: React.FC = () => {
           gwId={
             gwInfo?.isRecentFinished && gwInfo?.upcomingGwId
               ? gwInfo.upcomingGwId
-              : gwInfo?.recentGwId || 10
+              : gwInfo?.recentGwId || getEstimatedSeasonGameweek()
           }
         />
       </div>

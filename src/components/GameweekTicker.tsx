@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Calendar, AlertCircle, X, BarChart2 } from 'lucide-react';
-import { GameweekInfo } from '../services/fplService';
+import { GameweekInfo, getEstimatedSeasonGameweek } from '../services/fplService';
 import { triggerHaptic } from '../services/haptics';
 
 interface GameweekTickerProps {
@@ -44,13 +44,14 @@ export const GameweekTicker: React.FC<GameweekTickerProps> = ({ gwInfo, onOpenPo
 
   if (!gwInfo) return null;
 
+  const estimated = getEstimatedSeasonGameweek();
   const recentShort = gwInfo.recentGwId
     ? `GW ${gwInfo.recentGwId}`
-    : (gwInfo.recentGwName ? gwInfo.recentGwName.replace(/Gameweek\s*/i, 'GW ') : 'GW 10');
+    : (gwInfo.recentGwName ? gwInfo.recentGwName.replace(/Gameweek\s*/i, 'GW ') : `GW ${estimated}`);
 
   const upcomingShort = gwInfo.upcomingGwId
     ? `GW ${gwInfo.upcomingGwId}`
-    : (gwInfo.upcomingGwName ? gwInfo.upcomingGwName.replace(/Gameweek\s*/i, 'GW ') : 'GW 11');
+    : (gwInfo.upcomingGwName ? gwInfo.upcomingGwName.replace(/Gameweek\s*/i, 'GW ') : `GW ${Math.min(estimated + 1, 38)}`);
 
   const formattedDeadlineDate = gwInfo.deadlineIso
     ? new Date(gwInfo.deadlineIso).toLocaleDateString(undefined, {

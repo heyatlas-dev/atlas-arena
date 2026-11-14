@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Trophy, ArrowUp, ArrowDown, Minus, Zap, Swords, ShieldCheck, Flame } from 'lucide-react';
 import { LeagueMember } from '../types';
-import { GameweekInfo } from '../services/fplService';
+import { GameweekInfo, getEstimatedSeasonGameweek } from '../services/fplService';
 import { triggerHaptic } from '../services/haptics';
 
 interface TableViewProps {
@@ -25,7 +25,7 @@ export const TableView: React.FC<TableViewProps> = ({
 
   const gwLabel = gwInfo?.recentGwId
     ? `GW ${gwInfo.recentGwId}`
-    : (gwInfo?.recentGwName ? gwInfo.recentGwName.replace(/Gameweek\s*/i, 'GW ') : 'GW 10');
+    : (gwInfo?.recentGwName ? gwInfo.recentGwName.replace(/Gameweek\s*/i, 'GW ') : `GW ${getEstimatedSeasonGameweek()}`);
 
   // Compute sorted array based on selected mode
   const sorted = [...members].sort((a, b) => {
