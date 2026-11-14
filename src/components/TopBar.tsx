@@ -31,7 +31,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   return (
-    <header className="relative z-30 flex items-center justify-between px-3.5 py-2.5 bg-discord-darkest border-b border-discord-border/40 select-none shadow-md">
+    <header 
+      style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.625rem)' }}
+      className="relative z-30 flex items-center justify-between px-3.5 pb-2.5 bg-discord-darkest border-b border-discord-border/40 select-none shadow-md"
+    >
       {/* Left Menu Button */}
       <button
         onClick={() => {

@@ -21,6 +21,7 @@ import { triggerHaptic } from '../services/haptics';
 interface MessageCardProps {
   message: Message;
   currentUserName?: string;
+  knownMembers?: string[];
   onAddReaction: (messageId: string, emoji: string) => void;
   onReplyMessage?: (message: Message) => void;
   onDeleteMessage?: (messageId: string) => void;
@@ -32,6 +33,7 @@ const COMMON_REACTIONS = ['⚽', '👑', '🔥', '🤡', '😭', '🟥'];
 export const MessageCard: React.FC<MessageCardProps> = ({
   message,
   currentUserName = 'Manager',
+  knownMembers = [],
   onAddReaction,
   onReplyMessage,
   onDeleteMessage,
@@ -76,11 +78,26 @@ export const MessageCard: React.FC<MessageCardProps> = ({
     setShowActionsMenu(false);
   };
 
-  // Render Discord markdown formatting: **bold**, *italic*, `code`, and @mentions
+  // Render Discord markdown formatting: **bold**, *italic*, `code`, and @mentions (multi-word names included)
   const renderFormattedContent = (content: string) => {
     if (!content) return null;
 
-    const tokens = content.split(/(\*\*.*?\*\*|`.*?`|@[a-zA-Z0-9_\-]+|\*.*?\*)/g);
+    // Build regex for mentions: matching known manager names (case-insensitive) OR Capitalized names (@First Last) OR single tags (@tag)
+    const escapedSpecial = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const memberPatterns = (knownMembers || [])
+      .filter(Boolean)
+      .sort((a, b) => b.length - a.length)
+      .map((name) =>
+        name
+          .split('')
+          .map((c) => (/[a-zA-Z]/.test(c) ? `[${c.toLowerCase()}${c.toUpperCase()}]` : escapedSpecial(c)))
+          .join('')
+      );
+    const knownBranch = memberPatterns.length > 0 ? `${memberPatterns.join('|')}|` : '';
+    const mentionPattern = `@(?:${knownBranch}[a-zA-Z0-9_\\-]+(?:\\s+[A-Z][a-zA-Z0-9_\\-]+)*)`;
+
+    const regex = new RegExp(`(\\*\\*.*?\\*\\*|\`.*?\`|${mentionPattern}|\\*.*?\\*)`, 'g');
+    const tokens = content.split(regex);
 
     return tokens.map((token, i) => {
       if (!token) return null;

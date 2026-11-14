@@ -40,7 +40,10 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
       {/* Drawer Panel */}
       <div className="fixed top-0 right-0 bottom-0 w-80 max-w-[85vw] bg-discord-darker border-l border-discord-border z-50 flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-discord-border/60 bg-discord-darkest">
+        <div 
+          style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.75rem)' }}
+          className="flex items-center justify-between px-4 pb-3 border-b border-discord-border/60 bg-discord-darkest"
+        >
           <div className="flex items-center gap-2">
             <h2 className="font-bold text-sm text-white">Live Manager Roster</h2>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400">

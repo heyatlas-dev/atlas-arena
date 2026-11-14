@@ -22,6 +22,7 @@ import { UserAccount } from '../services/accountService';
 import { sounds } from '../services/soundEffects';
 import { THEMES, getSavedTheme, applyTheme, ArenaTheme } from '../services/themeService';
 import { notificationService } from '../services/notificationService';
+import { CURRENT_APP_VERSION } from '../services/updateService';
 import { AtlasLogo } from './AtlasLogo';
 
 interface LeftDrawerProps {
@@ -35,6 +36,7 @@ interface LeftDrawerProps {
   userAccount: UserAccount | null;
   onLogout: () => void;
   onOpenFixtures?: () => void;
+  onCheckUpdates?: () => void;
 }
 
 export const LeftDrawer: React.FC<LeftDrawerProps> = ({
@@ -48,6 +50,7 @@ export const LeftDrawer: React.FC<LeftDrawerProps> = ({
   userAccount,
   onLogout,
   onOpenFixtures,
+  onCheckUpdates,
 }) => {
   const [activeTab, setActiveTab] = useState<'leagues' | 'account'>('leagues');
   const [changeDefaultOpen, setChangeDefaultOpen] = useState(false);
@@ -100,7 +103,10 @@ export const LeftDrawer: React.FC<LeftDrawerProps> = ({
       {/* Drawer Panel */}
       <div className="fixed top-0 left-0 bottom-0 w-80 max-w-[85vw] bg-discord-darkest border-r border-discord-border z-50 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-discord-border/60 bg-discord-darker">
+        <div 
+          style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 0.75rem)' }}
+          className="flex items-center justify-between px-4 pb-3 border-b border-discord-border/60 bg-discord-darker"
+        >
           <div className="flex items-center gap-2">
             <AtlasLogo size={26} className="shrink-0" />
             <h2 className="font-extrabold text-sm tracking-wider text-white">ATLAS ARENA</h2>
@@ -534,6 +540,31 @@ export const LeftDrawer: React.FC<LeftDrawerProps> = ({
                     <span>▶ Send Test Notification</span>
                   </button>
                 )}
+              </div>
+
+              {/* App Version & In-App Update Checker */}
+              <div className="p-3.5 rounded-xl bg-discord-darker border border-discord-border space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <div>
+                      <div className="text-xs font-bold text-white">ATLAS Arena Updates</div>
+                      <div className="text-[10px] text-discord-muted">Installed: v{CURRENT_APP_VERSION} (Build 3)</div>
+                    </div>
+                  </div>
+                  {onCheckUpdates && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic('light');
+                        onCheckUpdates();
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-[10px] border border-emerald-500/30 transition-colors"
+                    >
+                      Check
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Log Out / Switch Account */}

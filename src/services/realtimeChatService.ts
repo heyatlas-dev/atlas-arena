@@ -89,14 +89,24 @@ class RealtimeChatService {
       }
     );
 
-    // 2. Listen for message deletions across devices
+    // 2. Listen for message deletions across devices (Broadcast + Postgres changes)
+    channel.on(
+      'broadcast',
+      { event: 'message_deleted' },
+      ({ payload }) => {
+        const deletedId = (payload as any)?.messageId;
+        if (deletedId) {
+          callbacks.onMessageDeleted(deletedId);
+        }
+      }
+    );
+
     channel.on(
       'postgres_changes',
       {
         event: 'DELETE',
         schema: 'public',
         table: 'arena_messages',
-        filter: `league_id=eq.${leagueId}`,
       },
       (payload) => {
         const deletedId = (payload.old as any)?.id;
@@ -263,12 +273,26 @@ class RealtimeChatService {
   }
 
   /**
-   * Delete message across all connected phones
+   * Delete message across all connected phones (Instant Broadcast + DB Delete)
    */
   public async deleteMessage(messageId: string): Promise<boolean> {
+    // 1. Instant broadcast to all active connected peer clients on the channel
+    if (this.activeChannel) {
+      try {
+        this.activeChannel.send({
+          type: 'broadcast',
+          event: 'message_deleted',
+          payload: { messageId },
+        });
+      } catch (e) {
+        console.warn('Could not broadcast message_deleted:', e);
+      }
+    }
+
     const supabase = getSupabase();
     if (!supabase) return false;
 
+    // 2. Permanently delete from Supabase database
     try {
       const { error } = await supabase.from('arena_messages').delete().eq('id', messageId);
       return !error;

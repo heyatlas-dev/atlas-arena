@@ -6,7 +6,7 @@ export interface ReleaseInfo {
   publishedAt: string;
 }
 
-export const CURRENT_APP_VERSION = '1.2.0';
+export const CURRENT_APP_VERSION = '1.2.1';
 
 export async function checkForAppUpdates(): Promise<ReleaseInfo | null> {
   try {
@@ -23,9 +23,9 @@ export async function checkForAppUpdates(): Promise<ReleaseInfo | null> {
 
     // Compare versions (semver: 1.1.0 vs 1.2.0)
     if (isNewerVersion(latestTag, CURRENT_APP_VERSION)) {
-      const apkAsset = (data.assets || []).find(
-        (a: any) => a.name.endsWith('.apk')
-      );
+      const apkAsset =
+        (data.assets || []).find((a: any) => a.name.includes('signed.apk')) ||
+        (data.assets || []).find((a: any) => a.name.endsWith('.apk'));
 
       return {
         tagName: data.tag_name,

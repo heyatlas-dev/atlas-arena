@@ -29,8 +29,9 @@ import { ManagerSquadModal } from './components/ManagerSquadModal';
 import { LiveFixturesModal } from './components/LiveFixturesModal';
 import { notificationService } from './services/notificationService';
 import { realtimeChat } from './services/realtimeChatService';
-import { checkForAppUpdates, ReleaseInfo } from './services/updateService';
+import { checkForAppUpdates, ReleaseInfo, CURRENT_APP_VERSION } from './services/updateService';
 import { gameweekRecap } from './services/gameweekRecapService';
+import { UpdateModal } from './components/UpdateModal';
 import { Sparkles, X } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -183,6 +184,7 @@ export const App: React.FC = () => {
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [battleRivalId, setBattleRivalId] = useState<string>('');
   const [availableUpdate, setAvailableUpdate] = useState<ReleaseInfo | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState<boolean>(false);
   const [fixturesModalOpen, setFixturesModalOpen] = useState(false);
   const [viewingSquadMember, setViewingSquadMember] = useState<{
     entryId: number;
@@ -190,14 +192,28 @@ export const App: React.FC = () => {
     teamName: string;
   } | null>(null);
 
-  // Check for newer APK releases on GitHub
+  // Check for newer APK releases on GitHub automatically on startup
   useEffect(() => {
     checkForAppUpdates().then((update) => {
       if (update) {
         setAvailableUpdate(update);
+        setShowUpdateModal(true);
       }
     });
   }, []);
+
+  const handleManualCheckUpdates = async () => {
+    const update = await checkForAppUpdates();
+    if (update) {
+      setAvailableUpdate(update);
+      setShowUpdateModal(true);
+    } else {
+      notificationService.sendInstantAlert(
+        '✅ App Up to Date',
+        `You are running the latest version of ATLAS Arena (v${CURRENT_APP_VERSION}).`
+      );
+    }
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -371,7 +387,13 @@ export const App: React.FC = () => {
         }
       },
       onMessageDeleted: (deletedId) => {
-        setMessages((prev) => prev.filter((m) => m.id !== deletedId));
+        setMessages((prev) => {
+          const filtered = prev.filter((m) => m.id !== deletedId);
+          try {
+            localStorage.setItem(`atlas_msgs_${currentLeague.id}`, JSON.stringify(filtered));
+          } catch {}
+          return filtered;
+        });
       },
       onReactionUpdated: (msgId, reactions) => {
         setMessages((prev) =>
@@ -661,25 +683,26 @@ export const App: React.FC = () => {
           onComplete={handleOnboardingComplete}
         />
 
-        {/* In-App Auto-Update Notification Banner */}
+        {/* In-App Auto-Update Notification Banner (Re-openable) */}
         {availableUpdate && (
-          <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-3 py-1.5 flex items-center justify-between text-xs font-bold z-40 select-none shadow-md shrink-0">
+          <div 
+            onClick={() => setShowUpdateModal(true)}
+            className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-3 py-1.5 flex items-center justify-between text-xs font-bold z-40 select-none shadow-md shrink-0 cursor-pointer hover:brightness-105 transition-all"
+          >
             <div className="flex items-center gap-1.5 truncate pr-2">
               <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0 animate-pulse" />
               <span className="truncate">New ATLAS Arena {availableUpdate.tagName} available!</span>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <a
-                href={availableUpdate.downloadUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="px-2 py-0.5 rounded-md bg-white text-emerald-900 font-extrabold text-[11px] shadow-xs hover:bg-slate-100"
-              >
-                Update Now
-              </a>
+              <span className="px-2 py-0.5 rounded-md bg-white text-emerald-900 font-extrabold text-[11px] shadow-xs">
+                View Update
+              </span>
               <button
                 type="button"
-                onClick={() => setAvailableUpdate(null)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAvailableUpdate(null);
+                }}
                 className="p-1 text-white/80 hover:text-white"
               >
                 <X className="w-3.5 h-3.5" />
@@ -800,6 +823,7 @@ export const App: React.FC = () => {
                   key={msg.id}
                   message={msg}
                   currentUserName={userAccount?.managerName}
+                  knownMembers={members.map((m) => m.manager_name)}
                   onAddReaction={handleAddReaction}
                   onReplyMessage={(m) => setReplyingTo(m)}
                   onDeleteMessage={handleDeleteMessage}
@@ -835,6 +859,7 @@ export const App: React.FC = () => {
           userAccount={userAccount}
           onLogout={handleLogout}
           onOpenFixtures={() => setFixturesModalOpen(true)}
+          onCheckUpdates={handleManualCheckUpdates}
         />
 
         {/* Right Drawer (Live Manager Roster) */}
@@ -886,6 +911,13 @@ export const App: React.FC = () => {
               ? gwInfo.upcomingGwId
               : gwInfo?.recentGwId || getEstimatedSeasonGameweek()
           }
+        />
+
+        {/* In-App Release Update Modal */}
+        <UpdateModal
+          isOpen={showUpdateModal}
+          updateInfo={availableUpdate}
+          onClose={() => setShowUpdateModal(false)}
         />
       </div>
     </div>
