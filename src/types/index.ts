@@ -84,6 +84,18 @@ export interface MessageReply {
   snippet: string;
 }
 
+export interface PollOption {
+  id: string;
+  text: string;
+  votes: string[]; // member names who voted for this option
+}
+
+export interface PollData {
+  question: string;
+  options: PollOption[];
+  total_votes: number;
+}
+
 export interface Message {
   id: string;
   league_id: string;
@@ -95,6 +107,7 @@ export interface Message {
   content: string;
   reply_to?: MessageReply;
   embed_data?: MatchEmbedData;
+  poll_data?: PollData;
   reactions?: Record<string, string[]>; // emoji -> member_names[]
   created_at: string;
   pending?: boolean;

@@ -11,9 +11,10 @@ import {
   MoreVertical,
   Check,
   Smile,
-  ArrowLeftRight
+  ArrowLeftRight,
+  BarChart2
 } from 'lucide-react';
-import { Message } from '../types';
+import { Message, PollData } from '../types';
 import { ClubCrest } from './ClubCrest';
 import { triggerHaptic } from '../services/haptics';
 
@@ -23,6 +24,7 @@ interface MessageCardProps {
   onAddReaction: (messageId: string, emoji: string) => void;
   onReplyMessage?: (message: Message) => void;
   onDeleteMessage?: (messageId: string) => void;
+  onVotePoll?: (messageId: string, optionId: string) => void;
 }
 
 const COMMON_REACTIONS = ['⚽', '👑', '🔥', '🤡', '😭', '🟥'];
@@ -33,6 +35,7 @@ export const MessageCard: React.FC<MessageCardProps> = ({
   onAddReaction,
   onReplyMessage,
   onDeleteMessage,
+  onVotePoll,
 }) => {
   const [showPicker, setShowPicker] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
@@ -314,6 +317,76 @@ export const MessageCard: React.FC<MessageCardProps> = ({
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Interactive Matchday Poll */}
+          {message.poll_data && (
+            <div className="mt-2.5 max-w-md rounded-xl border border-purple-500/40 bg-discord-darkest/95 overflow-hidden shadow-xl">
+              <div className="px-3.5 py-2.5 bg-gradient-to-r from-purple-950/60 via-discord-darkest to-discord-darker flex items-center justify-between border-b border-discord-border/50">
+                <div className="flex items-center gap-2">
+                  <BarChart2 className="w-4 h-4 text-purple-400" />
+                  <span className="font-extrabold text-xs text-white">
+                    {message.poll_data.question}
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono font-bold text-discord-light px-2 py-0.5 rounded bg-discord-card border border-discord-border/50">
+                  {message.poll_data.total_votes} {message.poll_data.total_votes === 1 ? 'vote' : 'votes'}
+                </span>
+              </div>
+
+              <div className="p-3 space-y-2">
+                {message.poll_data.options.map((opt) => {
+                  const hasVoted = opt.votes.includes(currentUserName);
+                  const totalVotes = message.poll_data?.total_votes || 0;
+                  const pct = totalVotes > 0 ? Math.round((opt.votes.length / totalVotes) * 100) : 0;
+
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic('medium');
+                        if (onVotePoll) onVotePoll(message.id, opt.id);
+                      }}
+                      className={`w-full relative overflow-hidden rounded-xl p-2.5 text-left border transition-all text-xs select-none ${
+                        hasVoted
+                          ? 'border-purple-500 bg-purple-950/30 shadow-xs'
+                          : 'border-discord-border/60 bg-discord-darker hover:border-discord-border/90'
+                      }`}
+                    >
+                      {/* Animated percentage background fill */}
+                      <div
+                        className={`absolute top-0 bottom-0 left-0 transition-all duration-300 pointer-events-none ${
+                          hasVoted ? 'bg-purple-600/35' : 'bg-discord-card/50'
+                        }`}
+                        style={{ width: `${pct}%` }}
+                      />
+
+                      <div className="relative flex items-center justify-between z-10">
+                        <div className="flex items-center gap-2 min-w-0 pr-2">
+                          <span
+                            className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                              hasVoted
+                                ? 'border-purple-400 bg-purple-500 text-white'
+                                : 'border-discord-muted bg-discord-darkest/60'
+                            }`}
+                          >
+                            {hasVoted && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                          </span>
+                          <span className="font-semibold text-white truncate">
+                            {opt.text}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0 font-mono text-[11px]">
+                          <span className="font-bold text-discord-light">{opt.votes.length}</span>
+                          <span className="text-discord-muted">({pct}%)</span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 

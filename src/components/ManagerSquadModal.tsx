@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, ShieldAlert, Award, ArrowLeftRight, Sparkles, User } from 'lucide-react';
+import { X, ShieldAlert, Award, ArrowLeftRight, Sparkles, User, Swords } from 'lucide-react';
 import { ManagerSquadData, SquadPlayer } from '../types';
 import { fetchManagerFullSquad } from '../services/fplService';
 import { ClubCrest } from './ClubCrest';
@@ -12,6 +12,7 @@ interface ManagerSquadModalProps {
   managerName: string;
   teamName: string;
   gwId: number;
+  onBattle?: (fplEntryId: number) => void;
 }
 
 export const ManagerSquadModal: React.FC<ManagerSquadModalProps> = ({
@@ -21,6 +22,7 @@ export const ManagerSquadModal: React.FC<ManagerSquadModalProps> = ({
   managerName,
   teamName,
   gwId,
+  onBattle,
 }) => {
   const [squad, setSquad] = useState<ManagerSquadData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,15 +109,32 @@ export const ManagerSquadModal: React.FC<ManagerSquadModalProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              triggerHaptic('light');
-              onClose();
-            }}
-            className="p-1.5 rounded-lg text-discord-muted hover:text-white hover:bg-discord-card transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {onBattle && (
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('medium');
+                  onClose();
+                  onBattle(fplEntryId);
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 text-xs font-bold transition-all shadow-xs"
+              >
+                <Swords className="w-3.5 h-3.5 text-rose-400" />
+                <span>Battle</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => {
+                triggerHaptic('light');
+                onClose();
+              }}
+              className="p-1.5 rounded-lg text-discord-muted hover:text-white hover:bg-discord-card transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Gameweek Badge & Chips Ribbon */}

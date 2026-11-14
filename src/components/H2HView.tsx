@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Swords, ChevronDown, Check, ArrowUp, ArrowDown, MessageSquare, Trophy, Zap } from 'lucide-react';
 import { LeagueMember } from '../types';
 import { GameweekInfo } from '../services/fplService';
@@ -12,6 +12,7 @@ interface H2HViewProps {
   isGameweekLive?: boolean;
   gwInfo?: GameweekInfo | null;
   onJumpToBanter?: (mentionText: string) => void;
+  initialRivalId?: string;
 }
 
 export const H2HView: React.FC<H2HViewProps> = ({
@@ -20,6 +21,7 @@ export const H2HView: React.FC<H2HViewProps> = ({
   isGameweekLive = false,
   gwInfo,
   onJumpToBanter,
+  initialRivalId,
 }) => {
   // If gameweek is live, default to 'gameweek'; if between gameweeks, default to 'overall'!
   const [viewMode, setViewMode] = useState<'overall' | 'gameweek'>(
@@ -36,10 +38,19 @@ export const H2HView: React.FC<H2HViewProps> = ({
   // Potential rival managers (all members except me)
   const rivalOptions = members.filter((m) => m.id !== myMember?.id);
 
-  // Selected rival state (defaults to #1 manager or first rival)
+  // Selected rival state (defaults to initialRivalId or #1 manager or first rival)
   const [selectedRivalId, setSelectedRivalId] = useState<string>(() => {
+    if (initialRivalId && rivalOptions.some((r) => r.id === initialRivalId)) {
+      return initialRivalId;
+    }
     return rivalOptions[0]?.id || '';
   });
+
+  useEffect(() => {
+    if (initialRivalId && rivalOptions.some((r) => r.id === initialRivalId)) {
+      setSelectedRivalId(initialRivalId);
+    }
+  }, [initialRivalId]);
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar, Style } from '@capacitor/status-bar';
-import { League, LeagueMember, Message, ChannelId, MessageReply } from './types';
+import { League, LeagueMember, Message, ChannelId, MessageReply, PollData } from './types';
 import { TopBar } from './components/TopBar';
 import { ChannelTabs } from './components/ChannelTabs';
 import { GameweekTicker } from './components/GameweekTicker';
@@ -176,6 +176,7 @@ export const App: React.FC = () => {
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [addLeagueOpen, setAddLeagueOpen] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [battleRivalId, setBattleRivalId] = useState<string>('');
   const [viewingSquadMember, setViewingSquadMember] = useState<{
     entryId: number;
     managerName: string;
@@ -516,6 +517,78 @@ export const App: React.FC = () => {
     realtimeChat.deleteMessage(messageId);
   };
 
+  // Create & Broadcast Gameweek Poll
+  const handleSendPoll = (poll: PollData) => {
+    const sender = userAccount ? userAccount.managerName : 'Manager';
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const targetChannel = activeChannel === 'table' || activeChannel === 'h2h' ? 'banter' : activeChannel;
+
+    const newMsg: Message = {
+      id: `poll-${Date.now()}`,
+      league_id: currentLeague.id,
+      channel: targetChannel,
+      sender_id: userAccount ? `member-${userAccount.teamId}` : 'me',
+      sender_name: sender,
+      is_bot: false,
+      content: `📊 **${poll.question}**`,
+      poll_data: poll,
+      created_at: timeStr,
+      reactions: {},
+    };
+
+    setMessages((prev) => [...prev, newMsg]);
+    triggerHaptic('medium');
+    sounds.playSend();
+
+    realtimeChat.postMessage(
+      currentLeague.id,
+      newMsg.channel,
+      newMsg.sender_id,
+      newMsg.sender_name,
+      newMsg.content,
+      undefined,
+      undefined,
+      false,
+      newMsg.id
+    );
+  };
+
+  // Vote on Interactive Poll
+  const handleVotePoll = (messageId: string, optionId: string) => {
+    const userName = userAccount ? userAccount.managerName : 'Manager';
+    triggerHaptic('medium');
+    sounds.playReaction();
+
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (msg.id !== messageId || !msg.poll_data) return msg;
+
+        const options = msg.poll_data.options.map((opt) => {
+          if (opt.id === optionId) {
+            const hasVoted = opt.votes.includes(userName);
+            const votes = hasVoted ? opt.votes.filter((u) => u !== userName) : [...opt.votes, userName];
+            return { ...opt, votes };
+          } else {
+            // Remove previous vote if single-choice
+            return { ...opt, votes: opt.votes.filter((u) => u !== userName) };
+          }
+        });
+
+        const total_votes = options.reduce((sum, opt) => sum + opt.votes.length, 0);
+
+        return {
+          ...msg,
+          poll_data: {
+            ...msg.poll_data,
+            options,
+            total_votes,
+          },
+        };
+      })
+    );
+  };
+
   // Toggle Starred League
   const handleToggleStarLeague = (leagueId: string) => {
     setLeagues((prev) =>
@@ -577,7 +650,10 @@ export const App: React.FC = () => {
         />
 
         {/* Dynamic Gameweek Status Ticker (Real FPL deadline / live status) */}
-        <GameweekTicker gwInfo={gwInfo} />
+        <GameweekTicker
+          gwInfo={gwInfo}
+          onOpenPoll={() => setActiveChannel('banter')}
+        />
 
         {/* Main Channel Content */}
         {activeChannel === 'h2h' ? (
@@ -586,6 +662,7 @@ export const App: React.FC = () => {
             currentMemberId={currentMember?.id}
             isGameweekLive={Boolean(gwInfo?.isLive)}
             gwInfo={gwInfo}
+            initialRivalId={battleRivalId}
             onJumpToBanter={(promptText) => {
               setActiveChannel('banter');
               handleSendMessage(promptText);
@@ -596,6 +673,10 @@ export const App: React.FC = () => {
             members={members}
             currentMemberId={currentMember?.id}
             gwInfo={gwInfo}
+            onLaunchBattle={(m) => {
+              setBattleRivalId(m.id);
+              setActiveChannel('h2h');
+            }}
             onViewSquad={(m) =>
               setViewingSquadMember({
                 entryId: m.fpl_entry_id,
@@ -652,6 +733,7 @@ export const App: React.FC = () => {
                   onAddReaction={handleAddReaction}
                   onReplyMessage={(m) => setReplyingTo(m)}
                   onDeleteMessage={handleDeleteMessage}
+                  onVotePoll={handleVotePoll}
                 />
               ))
             )}
@@ -659,11 +741,12 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Discord Message Input Bar with Reply Banner support */}
+        {/* Discord Message Input Bar with Reply Banner & Poll support */}
         {(activeChannel === 'banter' || activeChannel === 'matchday-live' || activeChannel === 'transfers') && (
           <MessageInput
             channelName={activeChannel}
             onSendMessage={handleSendMessage}
+            onSendPoll={handleSendPoll}
             memberNames={members.map((m) => m.manager_name)}
             replyingTo={replyingTo}
             onCancelReply={() => setReplyingTo(null)}
@@ -713,6 +796,14 @@ export const App: React.FC = () => {
           managerName={viewingSquadMember?.managerName || ''}
           teamName={viewingSquadMember?.teamName || ''}
           gwId={gwInfo?.recentGwId || getCachedGameweekState()?.recentGwId || 10}
+          onBattle={(entryId) => {
+            const rival = members.find((m) => m.fpl_entry_id === entryId);
+            if (rival) {
+              setBattleRivalId(rival.id);
+              setActiveChannel('h2h');
+              setViewingSquadMember(null);
+            }
+          }}
         />
       </div>
     </div>
