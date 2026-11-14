@@ -715,7 +715,6 @@ export const App: React.FC = () => {
         <GameweekTicker
           gwInfo={gwInfo}
           onOpenPoll={() => setActiveChannel('banter')}
-          onOpenFixtures={() => setFixturesModalOpen(true)}
         />
 
         {/* Main Channel Content */}
@@ -834,6 +833,7 @@ export const App: React.FC = () => {
           onToggleStarLeague={handleToggleStarLeague}
           userAccount={userAccount}
           onLogout={handleLogout}
+          onOpenFixtures={() => setFixturesModalOpen(true)}
         />
 
         {/* Right Drawer (Live Manager Roster) */}
@@ -880,7 +880,11 @@ export const App: React.FC = () => {
         <LiveFixturesModal
           isOpen={fixturesModalOpen}
           onClose={() => setFixturesModalOpen(false)}
-          gwId={gwInfo?.recentGwId || 10}
+          gwId={
+            gwInfo?.isRecentFinished && gwInfo?.upcomingGwId
+              ? gwInfo.upcomingGwId
+              : gwInfo?.recentGwId || 10
+          }
           members={members}
         />
       </div>

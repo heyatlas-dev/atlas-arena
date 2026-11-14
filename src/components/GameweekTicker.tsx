@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Calendar, AlertCircle, X, Sparkles, BarChart2, Radio } from 'lucide-react';
+import { Clock, Calendar, AlertCircle, X, BarChart2 } from 'lucide-react';
 import { GameweekInfo } from '../services/fplService';
 import { triggerHaptic } from '../services/haptics';
 
 interface GameweekTickerProps {
   gwInfo: GameweekInfo | null;
   onOpenPoll?: () => void;
-  onOpenFixtures?: () => void;
 }
 
 function calculateTimeRemaining(isoDate?: string | null): string {
@@ -26,11 +25,7 @@ function calculateTimeRemaining(isoDate?: string | null): string {
   return `${hours}h ${minutes}m ${seconds}s`;
 }
 
-export const GameweekTicker: React.FC<GameweekTickerProps> = ({
-  gwInfo,
-  onOpenPoll,
-  onOpenFixtures,
-}) => {
+export const GameweekTicker: React.FC<GameweekTickerProps> = ({ gwInfo, onOpenPoll }) => {
   const [countdown, setCountdown] = useState<string>(() => {
     return gwInfo?.deadlineIso ? calculateTimeRemaining(gwInfo.deadlineIso) : (gwInfo?.deadlineCountdown || '');
   });
@@ -69,7 +64,7 @@ export const GameweekTicker: React.FC<GameweekTickerProps> = ({
 
   return (
     <>
-      <div className="flex items-center justify-between px-3 py-1.5 bg-discord-darkest/95 border-b border-discord-border/40 text-[11px] select-none z-10 shrink-0">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-discord-darkest/95 border-b border-discord-border/40 text-[11px] select-none z-10 shrink-0 w-full overflow-hidden">
         {gwInfo.isLive ? (
           <div className="flex items-center gap-1.5 text-rose-400 font-bold shrink-0">
             <span className="relative flex h-2 w-2">
@@ -77,48 +72,31 @@ export const GameweekTicker: React.FC<GameweekTickerProps> = ({
               <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
             </span>
             <span className="tracking-wide">{recentShort} LIVE</span>
-            <span className="text-discord-muted font-normal text-[10px] hidden xs:inline">• Matchday in progress</span>
+            <span className="text-discord-muted font-normal text-[10px] hidden xs:inline">• Matches in progress</span>
           </div>
         ) : (
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span className="font-bold text-white text-xs">{recentShort} Concluded</span>
+            <span className="font-bold text-white text-xs">{recentShort} Done</span>
           </div>
         )}
 
-        {/* Right side controls: Fixtures Radar & Countdown */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          {onOpenFixtures && (
-            <button
-              type="button"
-              onClick={() => {
-                triggerHaptic('light');
-                onOpenFixtures();
-              }}
-              className="flex items-center gap-1 font-bold text-[10px] bg-discord-card/90 hover:bg-discord-card text-discord-cyan px-2 py-0.5 rounded-full border border-discord-border/50 shadow-xs transition-colors"
-            >
-              <Radio className="w-2.5 h-2.5 text-rose-400" />
-              <span>Fixtures</span>
-            </button>
-          )}
-
-          {/* Dynamic Countdown Pill */}
-          {countdown && !gwInfo.isLive && (
-            <button
-              type="button"
-              onClick={() => {
-                triggerHaptic('light');
-                setShowScheduleModal(true);
-              }}
-              className="flex items-center gap-1 shrink-0 font-mono text-[10px] bg-discord-card/90 hover:bg-discord-card text-amber-300 px-2 py-0.5 rounded-full border border-discord-border/50 shadow-xs transition-colors cursor-pointer"
-            >
-              <Clock className="w-2.5 h-2.5 text-amber-400" />
-              <span>
-                {upcomingShort} Deadline: <strong className="text-amber-200">{countdown}</strong>
-              </span>
-            </button>
-          )}
-        </div>
+        {/* Full, uncrowded Deadline Countdown Pill */}
+        {countdown && !gwInfo.isLive && (
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic('light');
+              setShowScheduleModal(true);
+            }}
+            className="flex items-center gap-1 shrink-0 font-mono text-[10px] bg-discord-card/90 hover:bg-discord-card text-amber-300 px-2.5 py-0.5 rounded-full border border-discord-border/50 shadow-xs transition-colors cursor-pointer"
+          >
+            <Clock className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+            <span className="truncate">
+              {upcomingShort} Deadline: <strong className="text-amber-200">{countdown}</strong>
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Gameweek Schedule & Deadline Modal */}

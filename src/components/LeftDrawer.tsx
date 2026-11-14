@@ -13,7 +13,8 @@ import {
   VolumeX,
   Palette,
   Bell,
-  BellOff
+  BellOff,
+  Radio,
 } from 'lucide-react';
 import { League } from '../types';
 import { triggerHaptic } from '../services/haptics';
@@ -33,6 +34,7 @@ interface LeftDrawerProps {
   onToggleStarLeague: (leagueId: string) => void;
   userAccount: UserAccount | null;
   onLogout: () => void;
+  onOpenFixtures?: () => void;
 }
 
 export const LeftDrawer: React.FC<LeftDrawerProps> = ({
@@ -45,6 +47,7 @@ export const LeftDrawer: React.FC<LeftDrawerProps> = ({
   onToggleStarLeague,
   userAccount,
   onLogout,
+  onOpenFixtures,
 }) => {
   const [activeTab, setActiveTab] = useState<'leagues' | 'account'>('leagues');
   const [changeDefaultOpen, setChangeDefaultOpen] = useState(false);
@@ -112,6 +115,34 @@ export const LeftDrawer: React.FC<LeftDrawerProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Premier League Fixtures & Squad Radar Quick Launcher */}
+        {onOpenFixtures && (
+          <div className="p-2.5 bg-gradient-to-r from-rose-950/40 via-discord-darker to-discord-darkest border-b border-discord-border/40">
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('medium');
+                onClose();
+                onOpenFixtures();
+              }}
+              className="w-full flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-rose-900/40 to-discord-card/80 border border-rose-500/40 hover:border-rose-400 text-white transition-all shadow-md group"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-rose-500/20 border border-rose-500/40 flex items-center justify-center shrink-0">
+                  <Radio className="w-4 h-4 text-rose-400 group-hover:scale-110 transition-transform" />
+                </div>
+                <div className="flex flex-col text-left">
+                  <span className="font-extrabold text-xs text-white">Premier League Fixtures</span>
+                  <span className="text-[10px] text-discord-light">Live Scores & Squad Radar</span>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono font-bold bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full border border-rose-500/30">
+                Radar
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Sub-navigation tabs */}
         <div className="flex items-center px-3 py-2 bg-discord-darker/60 border-b border-discord-border/30 gap-1 text-xs">

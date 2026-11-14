@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Radio, Clock, ShieldCheck, Flame, RefreshCw, Users } from 'lucide-react';
+import { X, Radio, Clock, RefreshCw, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { FPLFixtureInfo, fetchGameweekFixtures } from '../services/fplService';
 import { LeagueMember } from '../types';
 import { ClubCrest } from './ClubCrest';
@@ -18,13 +18,19 @@ export const LiveFixturesModal: React.FC<LiveFixturesModalProps> = ({
   gwId,
   members,
 }) => {
+  const [selectedGw, setSelectedGw] = useState<number>(gwId);
   const [fixtures, setFixtures] = useState<FPLFixtureInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'live' | 'upcoming'>('all');
 
-  const loadFixtures = () => {
+  // Update selectedGw whenever gwId prop changes
+  useEffect(() => {
+    setSelectedGw(gwId);
+  }, [gwId]);
+
+  const loadFixtures = (targetGw: number) => {
     setLoading(true);
-    fetchGameweekFixtures(gwId).then((res) => {
+    fetchGameweekFixtures(targetGw).then((res) => {
       setFixtures(res);
       setLoading(false);
     });
@@ -32,9 +38,9 @@ export const LiveFixturesModal: React.FC<LiveFixturesModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      loadFixtures();
+      loadFixtures(selectedGw);
     }
-  }, [isOpen, gwId]);
+  }, [isOpen, selectedGw]);
 
   if (!isOpen) return null;
 
@@ -44,19 +50,31 @@ export const LiveFixturesModal: React.FC<LiveFixturesModalProps> = ({
     return true;
   });
 
+  const handlePrevGw = () => {
+    if (selectedGw > 1) {
+      triggerHaptic('light');
+      setSelectedGw((prev) => prev - 1);
+    }
+  };
+
+  const handleNextGw = () => {
+    if (selectedGw < 38) {
+      triggerHaptic('light');
+      setSelectedGw((prev) => prev + 1);
+    }
+  };
+
   // Helper to find which managers in our mini-league have players in this fixture
   const getActiveManagersInFixture = (homeTeam: string, awayTeam: string) => {
-    const managersWithAssets: { managerName: string; assets: string[]; isCaptain: boolean }[] = [];
+    const managersWithAssets: { managerName: string; isCaptain: boolean }[] = [];
     const hLower = homeTeam.toLowerCase();
     const aLower = awayTeam.toLowerCase();
 
     members.forEach((m) => {
-      // Check if captain is from one of these teams
       const captainInMatch = Boolean(
         m.captain_name && (hLower.includes(m.captain_name.toLowerCase()) || aLower.includes(m.captain_name.toLowerCase()))
       );
 
-      // Check starting assets
       const matchedAssets = (m.assets || []).filter(
         (asset) => hLower.includes(asset.toLowerCase()) || aLower.includes(asset.toLowerCase())
       );
@@ -64,7 +82,6 @@ export const LiveFixturesModal: React.FC<LiveFixturesModalProps> = ({
       if (matchedAssets.length > 0 || captainInMatch) {
         managersWithAssets.push({
           managerName: m.manager_name,
-          assets: matchedAssets.slice(0, 3),
           isCaptain: captainInMatch,
         });
       }
@@ -76,18 +93,39 @@ export const LiveFixturesModal: React.FC<LiveFixturesModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in duration-150">
       <div className="w-full max-w-lg bg-discord-darkest rounded-2xl border border-discord-border/80 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-        {/* Header */}
+        {/* Header with Gameweek Stepper */}
         <div className="px-4 py-3 bg-gradient-to-r from-discord-card via-discord-darker to-discord-darkest flex items-center justify-between border-b border-discord-border/50 shrink-0">
           <div className="flex items-center gap-2">
             <Radio className="w-4 h-4 text-rose-500 animate-pulse" />
-            <h3 className="font-extrabold text-sm text-white">Gameweek {gwId} Premier League Fixtures</h3>
+            <div className="flex items-center gap-1.5 bg-discord-darkest rounded-lg px-2 py-0.5 border border-discord-border/60">
+              <button
+                type="button"
+                onClick={handlePrevGw}
+                disabled={selectedGw <= 1}
+                className="p-0.5 text-discord-muted hover:text-white disabled:opacity-30"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="font-extrabold text-xs text-white tracking-wide">
+                Gameweek {selectedGw}
+              </span>
+              <button
+                type="button"
+                onClick={handleNextGw}
+                disabled={selectedGw >= 38}
+                className="p-0.5 text-discord-muted hover:text-white disabled:opacity-30"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
+
           <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => {
                 triggerHaptic('light');
-                loadFixtures();
+                loadFixtures(selectedGw);
               }}
               title="Refresh Fixtures"
               className="p-1.5 text-discord-muted hover:text-white rounded-lg transition-colors"
@@ -149,7 +187,7 @@ export const LiveFixturesModal: React.FC<LiveFixturesModalProps> = ({
         <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
           {filteredFixtures.length === 0 ? (
             <div className="p-8 text-center text-xs text-discord-muted">
-              No fixtures found for the selected filter.
+              {loading ? 'Loading official Premier League fixtures...' : 'No fixtures found for the selected filter.'}
             </div>
           ) : (
             filteredFixtures.map((fix) => {
