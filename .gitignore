@@ -1,0 +1,25 @@
+# Node
+node_modules/
+dist/
+tsconfig.tsbuildinfo
+
+# Toolchains & SDKs
+.jdk/
+.android-sdk/
+.android/
+.gradle/
+.config/
+.local/
+.npm/
+
+# Android build outputs
+android/.gradle/
+android/build/
+android/app/build/
+android/capacitor-cordova-android-plugins/build/
+
+# Local APK copies (attached to GitHub Releases instead)
+*.apk
+
+# Environment variables
+.env.local
