@@ -73,16 +73,55 @@ export const MessageCard: React.FC<MessageCardProps> = ({
     setShowActionsMenu(false);
   };
 
-  // Render smart mentions with styled pills
+  // Render Discord markdown formatting: **bold**, *italic*, `code`, and @mentions
   const renderFormattedContent = (content: string) => {
-    const parts = content.split(/(@[a-zA-Z0-9_\-]+)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('@')) {
+    if (!content) return null;
+
+    const tokens = content.split(/(\*\*.*?\*\*|`.*?`|@[a-zA-Z0-9_\-]+|\*.*?\*)/g);
+
+    return tokens.map((token, i) => {
+      if (!token) return null;
+
+      // 1. Bold: **text**
+      if (token.startsWith('**') && token.endsWith('**') && token.length >= 4) {
+        const inner = token.slice(2, -2);
+        if (inner.startsWith('@')) {
+          return (
+            <span
+              key={i}
+              className="inline-flex items-center px-1.5 py-0.5 rounded font-black text-[13px] mx-0.5 bg-discord-blurple/25 text-discord-blurple border border-discord-blurple/40 shadow-xs"
+            >
+              {inner}
+            </span>
+          );
+        }
+        return (
+          <strong key={i} className="font-extrabold text-white">
+            {inner}
+          </strong>
+        );
+      }
+
+      // 2. Inline Code: `text`
+      if (token.startsWith('`') && token.endsWith('`') && token.length >= 2) {
+        const inner = token.slice(1, -1);
+        return (
+          <code
+            key={i}
+            className="px-1.5 py-0.5 mx-0.5 rounded bg-discord-darkest/90 border border-discord-border/60 text-discord-cyan font-mono text-[12px]"
+          >
+            {inner}
+          </code>
+        );
+      }
+
+      // 3. Standalone Mention: @name
+      if (token.startsWith('@')) {
         const isSmartGroup =
-          part.includes('captains') ||
-          part.includes('assets') ||
-          part.includes('bench') ||
-          part.includes('top4');
+          token.includes('captains') ||
+          token.includes('assets') ||
+          token.includes('bench') ||
+          token.includes('top4');
         return (
           <span
             key={i}
@@ -92,11 +131,23 @@ export const MessageCard: React.FC<MessageCardProps> = ({
                 : 'bg-discord-blurple/20 text-discord-blurple hover:bg-discord-blurple/30 font-semibold'
             }`}
           >
-            {part}
+            {token}
           </span>
         );
       }
-      return <span key={i}>{part}</span>;
+
+      // 4. Italic: *text*
+      if (token.startsWith('*') && token.endsWith('*') && token.length >= 2) {
+        const inner = token.slice(1, -1);
+        return (
+          <em key={i} className="italic text-discord-light">
+            {inner}
+          </em>
+        );
+      }
+
+      // 5. Plain text
+      return <span key={i}>{token}</span>;
     });
   };
 
