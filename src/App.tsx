@@ -313,10 +313,44 @@ export const App: React.FC = () => {
           if (prev.some((m) => m.id === newMsg.id)) return prev;
           return [...prev, newMsg];
         });
-        if (newMsg.is_bot) {
-          sounds.playChime();
-        } else {
-          sounds.playPop();
+
+        const isMe = userAccount && (
+          newMsg.sender_id === `member-${userAccount.teamId}` ||
+          newMsg.sender_name === userAccount.managerName
+        );
+
+        if (!isMe && userAccount) {
+          const myFullName = userAccount.managerName.toLowerCase();
+          const myFirstName = userAccount.managerName.split(' ')[0]?.toLowerCase();
+          const contentLower = (newMsg.content || '').toLowerCase();
+
+          // Check if user was pinged (@Full Name, @First Name, reply, or squad impact)
+          const isMentioned =
+            contentLower.includes(`@${myFullName}`) ||
+            (Boolean(myFirstName) && contentLower.includes(`@${myFirstName}`)) ||
+            newMsg.reply_to?.sender_name?.toLowerCase() === myFullName ||
+            Boolean(
+              newMsg.embed_data?.impact_items?.some(
+                (item) => item.member_name?.toLowerCase() === myFullName
+              )
+            );
+
+          if (isMentioned) {
+            sounds.playChime();
+            const notifTitle = newMsg.is_bot
+              ? `⚽ ATLAS Bot Alert`
+              : `💬 @${newMsg.sender_name} mentioned you in #${newMsg.channel}`;
+
+            // Clean markdown formatting for clear system notification preview
+            const cleanBody = newMsg.content.replace(/\*\*/g, '').slice(0, 120);
+            notificationService.sendInstantAlert(notifTitle, cleanBody);
+          } else {
+            if (newMsg.is_bot) {
+              sounds.playChime();
+            } else {
+              sounds.playPop();
+            }
+          }
         }
       },
       onMessageDeleted: (deletedId) => {
