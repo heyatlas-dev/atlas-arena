@@ -467,9 +467,13 @@ export const fetchGameweekState = async (): Promise<GameweekInfo> => {
 };
 
 export const getEstimatedSeasonGameweek = (): number => {
-  // 2024/25 Season kickoff: Aug 16, 2024
-  const seasonStart = new Date('2024-08-16T18:00:00Z').getTime();
-  const diffWeeks = Math.floor((Date.now() - seasonStart) / (7 * 24 * 60 * 60 * 1000)) + 1;
+  const now = new Date();
+  const currentYear = now.getUTCFullYear();
+  const currentMonth = now.getUTCMonth(); // 0 = Jan, 7 = Aug
+  // Premier League season kicks off mid-August (~Aug 15)
+  const seasonStartYear = currentMonth >= 7 ? currentYear : currentYear - 1;
+  const seasonStart = new Date(Date.UTC(seasonStartYear, 7, 15, 18, 0, 0)).getTime();
+  const diffWeeks = Math.floor((now.getTime() - seasonStart) / (7 * 24 * 60 * 60 * 1000)) + 1;
   return Math.min(Math.max(diffWeeks, 1), 38);
 };
 
