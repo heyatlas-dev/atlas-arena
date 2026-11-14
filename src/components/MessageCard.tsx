@@ -242,6 +242,9 @@ export const MessageCard: React.FC<MessageCardProps> = ({
                   {message.embed_data.type === 'red_card' && (
                     <Flame className="w-4 h-4 text-red-500" />
                   )}
+                  {message.embed_data.type === 'bonus_swing' && (
+                    <Trophy className="w-4 h-4 text-amber-300" />
+                  )}
                   {message.embed_data.type === 'transfer_reveal' && (
                     <ArrowLeftRight className="w-4 h-4 text-purple-400" />
                   )}
@@ -258,7 +261,13 @@ export const MessageCard: React.FC<MessageCardProps> = ({
               <div className="p-3 bg-discord-darker/60 space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-discord-muted">
-                    {message.embed_data.type === 'transfer_reveal' ? 'Top Captaincy Pick:' : 'Scorer:'}
+                    {message.embed_data.type === 'transfer_reveal'
+                      ? 'Top Captaincy Pick:'
+                      : message.embed_data.type === 'clean_sheet_lost'
+                      ? 'DEFCON Target:'
+                      : message.embed_data.type === 'bonus_swing'
+                      ? 'Top Bonus Leader:'
+                      : 'Scorer:'}
                   </span>
                   <div className="flex items-center gap-1.5">
                     <ClubCrest teamName={message.embed_data.player_team} size="xs" />

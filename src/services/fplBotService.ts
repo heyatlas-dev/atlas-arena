@@ -5,6 +5,7 @@ import {
   getPlayerNameById,
   getTeamNameById,
   calculateEventPoints,
+  getTeamDefenderNames,
 } from './fplService';
 import { sounds } from './soundEffects';
 import { triggerHaptic } from './haptics';
@@ -16,7 +17,7 @@ interface FPLFixtureStatItem {
 }
 
 interface FPLFixtureStat {
-  identifier: 'goals_scored' | 'assists' | 'own_goals' | 'penalties_saved' | 'red_cards' | 'yellow_cards' | 'bonus';
+  identifier: 'goals_scored' | 'assists' | 'own_goals' | 'penalties_saved' | 'red_cards' | 'yellow_cards' | 'bonus' | 'bps';
   a: FPLFixtureStatItem[];
   h: FPLFixtureStatItem[];
 }
@@ -136,6 +137,33 @@ class FPLAutonomousBotService {
           }
         }
       }
+    }
+
+    // Mark DEFCON, Clean Sheet Confirm, and BPS keys as seen so finished matches never trigger alerts
+    const homeDefconKey = `defcon_${fix.id}_home`;
+    const awayDefconKey = `defcon_${fix.id}_away`;
+    const homeCsKey = `cs_confirm_${fix.id}_home`;
+    const awayCsKey = `cs_confirm_${fix.id}_away`;
+    const bonusKey = `bonus_lock_${fix.id}`;
+    if (!this.seenEventKeys.has(homeDefconKey)) {
+      this.seenEventKeys.add(homeDefconKey);
+      added = true;
+    }
+    if (!this.seenEventKeys.has(awayDefconKey)) {
+      this.seenEventKeys.add(awayDefconKey);
+      added = true;
+    }
+    if (!this.seenEventKeys.has(homeCsKey)) {
+      this.seenEventKeys.add(homeCsKey);
+      added = true;
+    }
+    if (!this.seenEventKeys.has(awayCsKey)) {
+      this.seenEventKeys.add(awayCsKey);
+      added = true;
+    }
+    if (!this.seenEventKeys.has(bonusKey)) {
+      this.seenEventKeys.add(bonusKey);
+      added = true;
     }
 
     if (added) {
@@ -267,6 +295,57 @@ class FPLAutonomousBotService {
         }
       }
     }
+
+    // 1. DEFCON Check: Home team conceded (Away score >= 1)
+    if (fix.team_a_score !== null && fix.team_a_score >= 1) {
+      const defconKey = `defcon_${fix.id}_home`;
+      if (!this.seenEventKeys.has(defconKey)) {
+        this.seenEventKeys.add(defconKey);
+        this.saveSeenEvents();
+        this.announceDefconCleanSheetWiped(homeTeam, fix.team_h, fixtureTitle, minuteStr);
+      }
+    }
+
+    // 2. DEFCON Check: Away team conceded (Home score >= 1)
+    if (fix.team_h_score !== null && fix.team_h_score >= 1) {
+      const defconKey = `defcon_${fix.id}_away`;
+      if (!this.seenEventKeys.has(defconKey)) {
+        this.seenEventKeys.add(defconKey);
+        this.saveSeenEvents();
+        this.announceDefconCleanSheetWiped(awayTeam, fix.team_a, fixtureTitle, minuteStr);
+      }
+    }
+
+    // 3. Live BPS Bonus Points Lock Check (at 75'+ or Full Time)
+    const bpsStat = fix.stats.find((s) => s.identifier === 'bps');
+    if (bpsStat && (fix.minutes >= 75 || fix.finished)) {
+      const bonusKey = `bonus_lock_${fix.id}`;
+      if (!this.seenEventKeys.has(bonusKey)) {
+        this.seenEventKeys.add(bonusKey);
+        this.saveSeenEvents();
+        this.announceBpsBonusLock(fix, bpsStat, fixtureTitle, minuteStr);
+      }
+    }
+
+    // 4. Clean Sheet Confirmed Lock (when fixture finishes with 0 conceded)
+    if (fix.finished) {
+      if (fix.team_a_score === 0) {
+        const homeCsKey = `cs_confirm_${fix.id}_home`;
+        if (!this.seenEventKeys.has(homeCsKey)) {
+          this.seenEventKeys.add(homeCsKey);
+          this.saveSeenEvents();
+          this.announceCleanSheetConfirmed(homeTeam, fix.team_h, fixtureTitle);
+        }
+      }
+      if (fix.team_h_score === 0) {
+        const awayCsKey = `cs_confirm_${fix.id}_away`;
+        if (!this.seenEventKeys.has(awayCsKey)) {
+          this.seenEventKeys.add(awayCsKey);
+          this.saveSeenEvents();
+          this.announceCleanSheetConfirmed(awayTeam, fix.team_a, fixtureTitle);
+        }
+      }
+    }
   }
 
   /**
@@ -285,17 +364,6 @@ class FPLAutonomousBotService {
       m.captain_name?.toLowerCase().includes(surname)
     );
 
-    if (captainManagers.length > 0) {
-      captainManagers.forEach((m) => {
-        const mult = m.captain_multiplier || 2;
-        impactItems.push({
-          text: `@${m.manager_name} (+${player.points * mult} pts Captain!)`,
-          positive: true,
-          member_name: m.manager_name,
-        });
-      });
-    }
-
     // 2. Check Starting 11 squad owners (who didn't captain him)
     const squadManagers = this.members.filter(
       (m) =>
@@ -303,16 +371,54 @@ class FPLAutonomousBotService {
         m.assets?.some((a) => a.toLowerCase().includes(surname))
     );
 
+    const totalOwnersCount = captainManagers.length + squadManagers.length;
+    const isSoloDifferential = totalOwnersCount === 1;
+
+    if (captainManagers.length > 0) {
+      captainManagers.forEach((m) => {
+        const mult = m.captain_multiplier || 2;
+        const pts = player.points * mult;
+        const text = isSoloDifferential
+          ? `🎯 SOLO DIFFERENTIAL (C): @${m.manager_name} (+${pts} pts - Sole owner in league!)`
+          : `@${m.manager_name} (+${pts} pts Captain!)`;
+        impactItems.push({
+          text,
+          positive: true,
+          member_name: m.manager_name,
+        });
+      });
+    }
+
     squadManagers.forEach((m) => {
+      const text = isSoloDifferential
+        ? `🎯 SOLO DIFFERENTIAL: @${m.manager_name} (+${player.points} pts - Sole owner in league!)`
+        : `@${m.manager_name} (+${player.points} pts in squad)`;
       impactItems.push({
-        text: `@${m.manager_name} (+${player.points} pts in squad)`,
+        text,
         positive: true,
         member_name: m.manager_name,
       });
     });
 
-    // 3. Differential status if nobody in league owns him
-    if (impactItems.length === 0) {
+    // 3. Template punishment check: if >= 60% of the league or (totalMembers >= 3 and nonOwners <= 2)
+    const nonOwners = this.members.filter(
+      (m) =>
+        !captainManagers.some((c) => c.id === m.id) &&
+        !squadManagers.some((s) => s.id === m.id)
+    );
+
+    if (this.members.length >= 3 && totalOwnersCount >= 2 && nonOwners.length <= 2) {
+      nonOwners.forEach((m) => {
+        impactItems.push({
+          text: `⚠️ TEMPLATE PUNISHMENT: @${m.manager_name} (0 pts - Taking rank damage!)`,
+          positive: false,
+          member_name: m.manager_name,
+        });
+      });
+    }
+
+    // 4. Differential status if nobody in league owns him
+    if (totalOwnersCount === 0) {
       impactItems.push({
         text: 'No managers in league own this asset (Differential dodge)',
         positive: false,
@@ -325,7 +431,7 @@ class FPLAutonomousBotService {
       minute,
       player_name: player.name,
       player_team: player.team,
-      event_title: 'Goal Scored',
+      event_title: isSoloDifferential ? '🎯 Solo Differential Goal' : 'Goal Scored',
       pts_scored: player.points,
       impact_items: impactItems,
     };
@@ -467,6 +573,254 @@ class FPLAutonomousBotService {
       `🟥 RED CARD: ${player.name}`,
       `${player.name} (${player.team}) has been sent off (${minute})!`
     );
+  }
+
+  /**
+   * Announce DEFCON 1 clean sheet loss (excluding goalkeepers)
+   */
+  private announceDefconCleanSheetWiped(
+    teamName: string,
+    teamId: number,
+    fixtureTitle: string,
+    minute: string
+  ) {
+    const defenderNames = getTeamDefenderNames(teamId);
+    if (defenderNames.size === 0) return;
+
+    const impactItems: EmbedImpactItem[] = [];
+
+    this.members.forEach((m) => {
+      // Find all defenders owned by this manager in their Starting XI (excluding goalkeepers)
+      const ownedDefs = (m.assets || []).filter((a) => defenderNames.has(a.toLowerCase()));
+
+      if (ownedDefs.length > 0) {
+        const isCaptain = Boolean(m.captain_name && defenderNames.has(m.captain_name.toLowerCase()));
+        const totalPtsLost = ownedDefs.length * 4 + (isCaptain ? (m.captain_multiplier - 1) * 4 : 0);
+
+        impactItems.push({
+          text: `@${m.manager_name} (-${totalPtsLost} pts: ${ownedDefs.join(', ')} CS wiped${isCaptain ? ' (C)' : ''})`,
+          positive: false,
+          member_name: m.manager_name,
+        });
+      }
+    });
+
+    if (impactItems.length === 0) {
+      impactItems.push({
+        text: `No managers in league own ${teamName} defenders (DEFCON Dodged)`,
+        positive: true,
+      });
+    }
+
+    const impactText = impactItems.map((i) => i.text).join(' • ');
+    const content = `🛡️ **DEFCON 1: ${teamName} Clean Sheet WIPED!** (${minute})\nAll ${teamName} defenders lose their +4 Clean Sheet bonus.\nImpact: ${impactText}`;
+
+    const embedData: MatchEmbedData = {
+      type: 'clean_sheet_lost',
+      fixture: fixtureTitle,
+      minute,
+      player_name: `${teamName} Defenders`,
+      player_team: teamName,
+      event_title: 'DEFCON 1: Clean Sheet Wiped',
+      pts_scored: -4,
+      impact_items: impactItems,
+    };
+
+    this.postBotMessage('matchday-live', content, embedData);
+
+    const hasImpactedManagers = impactItems.some((i) => !i.text.includes('Dodged') && i.member_name);
+    if (hasImpactedManagers) {
+      notificationService.sendInstantAlert(
+        `🛡️ DEFCON 1: ${teamName} Clean Sheet Wiped!`,
+        `All defenders lose +4 CS points (${minute})! ${impactText}`
+      );
+    }
+  }
+
+  /**
+   * Announce Clean Sheet Confirmed (excluding goalkeepers) when fixture finishes
+   */
+  private announceCleanSheetConfirmed(
+    teamName: string,
+    teamId: number,
+    fixtureTitle: string
+  ) {
+    const defenderNames = getTeamDefenderNames(teamId);
+    if (defenderNames.size === 0) return;
+
+    const impactItems: EmbedImpactItem[] = [];
+    const ownerManagers: { manager: LeagueMember; defs: string[] }[] = [];
+
+    this.members.forEach((m) => {
+      const ownedDefs = (m.assets || []).filter((a) => defenderNames.has(a.toLowerCase()));
+      if (ownedDefs.length > 0) {
+        ownerManagers.push({ manager: m, defs: ownedDefs });
+      }
+    });
+
+    const isSolo = ownerManagers.length === 1;
+
+    ownerManagers.forEach(({ manager: m, defs }) => {
+      const isCaptain = Boolean(m.captain_name && defenderNames.has(m.captain_name.toLowerCase()));
+      const totalPts = defs.length * 4 + (isCaptain ? (m.captain_multiplier - 1) * 4 : 0);
+      const text = isSolo
+        ? `🎯 SOLO DIFFERENTIAL HAUL: @${m.manager_name} (+${totalPts} pts: ${defs.join(', ')} CS locked - Sole owner!)`
+        : `@${m.manager_name} (+${totalPts} pts: ${defs.join(', ')} CS locked${isCaptain ? ' (C)' : ''})`;
+
+      impactItems.push({
+        text,
+        positive: true,
+        member_name: m.manager_name,
+      });
+    });
+
+    // Check for template punishment if majority own defenders from this team
+    if (this.members.length >= 3 && ownerManagers.length >= 2) {
+      const nonOwners = this.members.filter((m) => !ownerManagers.some((o) => o.manager.id === m.id));
+      if (nonOwners.length <= 2) {
+        nonOwners.forEach((m) => {
+          impactItems.push({
+            text: `⚠️ TEMPLATE PUNISHMENT: @${m.manager_name} (0 pts - Missed ${teamName} CS!)`,
+            positive: false,
+            member_name: m.manager_name,
+          });
+        });
+      }
+    }
+
+    if (impactItems.length === 0) {
+      impactItems.push({
+        text: `No managers in league own ${teamName} defenders`,
+        positive: false,
+      });
+    }
+
+    const impactText = impactItems.map((i) => i.text).join(' • ');
+    const content = `🛡️ **CLEAN SHEET LOCKED: ${teamName}** (FT: 0 conceded)\nDefenders secure +4 Clean Sheet points!\nImpact: ${impactText}`;
+
+    const embedData: MatchEmbedData = {
+      type: 'clean_sheet_lost', // Re-uses clean sheet embed style with positive points
+      fixture: fixtureTitle,
+      minute: 'FT',
+      player_name: `${teamName} Defenders`,
+      player_team: teamName,
+      event_title: isSolo ? '🎯 Solo Differential Clean Sheet' : 'Clean Sheet Locked',
+      pts_scored: 4,
+      impact_items: impactItems,
+    };
+
+    this.postBotMessage('matchday-live', content, embedData);
+
+    const hasRewardedManagers = impactItems.some((i) => i.positive && i.member_name);
+    if (hasRewardedManagers) {
+      notificationService.sendInstantAlert(
+        `🛡️ CS LOCKED: ${teamName} (FT)`,
+        `Clean sheet confirmed! ${impactText}`
+      );
+    }
+  }
+
+  /**
+   * Announce live Bonus Points (BPS) lock for a fixture
+   */
+  private announceBpsBonusLock(
+    fix: FPLFixture,
+    bpsStat: FPLFixtureStat,
+    fixtureTitle: string,
+    minute: string
+  ) {
+    const allBps = [...(bpsStat.h || []), ...(bpsStat.a || [])].filter((i) => i.value > 0);
+    allBps.sort((a, b) => b.value - a.value);
+
+    if (allBps.length < 3) return;
+
+    // Top 3 BPS
+    const top1 = allBps[0];
+    const top2 = allBps[1];
+    const top3 = allBps[2];
+
+    const p1Details = getPlayerDetailsById(top1.element);
+    const p2Details = getPlayerDetailsById(top2.element);
+    const p3Details = getPlayerDetailsById(top3.element);
+
+    const p1Name = p1Details?.web_name || getPlayerNameById(top1.element);
+    const p2Name = p2Details?.web_name || getPlayerNameById(top2.element);
+    const p3Name = p3Details?.web_name || getPlayerNameById(top3.element);
+
+    const impactItems: EmbedImpactItem[] = [];
+
+    // Check league owners for Top 1 (3 pts)
+    this.members.forEach((m) => {
+      const isCaptain = m.captain_name?.toLowerCase().includes(p1Name.toLowerCase());
+      const inSquad = m.assets?.some((a) => a.toLowerCase().includes(p1Name.toLowerCase()));
+      if (isCaptain) {
+        impactItems.push({
+          text: `@${m.manager_name} (+${3 * m.captain_multiplier} pts Captain 3 Bonus!)`,
+          positive: true,
+          member_name: m.manager_name,
+        });
+      } else if (inSquad) {
+        impactItems.push({
+          text: `@${m.manager_name} (+3 pts 3 Bonus)`,
+          positive: true,
+          member_name: m.manager_name,
+        });
+      }
+    });
+
+    // Check league owners for Top 2 (2 pts)
+    this.members.forEach((m) => {
+      const isCaptain = m.captain_name?.toLowerCase().includes(p2Name.toLowerCase());
+      const inSquad = m.assets?.some((a) => a.toLowerCase().includes(p2Name.toLowerCase()));
+      if (isCaptain) {
+        impactItems.push({
+          text: `@${m.manager_name} (+${2 * m.captain_multiplier} pts Captain 2 Bonus!)`,
+          positive: true,
+          member_name: m.manager_name,
+        });
+      } else if (inSquad) {
+        impactItems.push({
+          text: `@${m.manager_name} (+2 pts 2 Bonus)`,
+          positive: true,
+          member_name: m.manager_name,
+        });
+      }
+    });
+
+    if (impactItems.length === 0) {
+      impactItems.push({
+        text: 'No managers in league own top bonus assets',
+        positive: false,
+      });
+    }
+
+    const impactText = impactItems.map((i) => i.text).join(' • ');
+    const content = `🥇 **BONUS POINTS LOCKED: ${fixtureTitle}** (${minute})\n` +
+      `• 3 pts: **${p1Name}** (${top1.value} BPS)\n` +
+      `• 2 pts: **${p2Name}** (${top2.value} BPS)\n` +
+      `• 1 pt: **${p3Name}** (${top3.value} BPS)\n` +
+      `Impact: ${impactText}`;
+
+    const embedData: MatchEmbedData = {
+      type: 'bonus_swing',
+      fixture: fixtureTitle,
+      minute,
+      player_name: p1Name,
+      player_team: p1Details?.team_name || 'PL',
+      event_title: 'Bonus Points (BPS) Locked',
+      pts_scored: 3,
+      impact_items: impactItems,
+    };
+
+    this.postBotMessage('matchday-live', content, embedData);
+
+    const hasBonusManagers = impactItems.some((i) => i.positive && i.member_name);
+    if (hasBonusManagers) {
+      notificationService.sendInstantAlert(
+        `🥇 BONUS LOCKED: ${p1Name} (3 pts)`,
+        `${fixtureTitle} (${minute})! ${impactText}`
+      );
+    }
   }
 
   private postBotMessage(channel: 'matchday-live' | 'banter', content: string, embedData?: MatchEmbedData) {

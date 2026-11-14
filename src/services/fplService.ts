@@ -308,6 +308,21 @@ export const getTeamShortById = (teamId: number): string => {
 };
 
 /**
+ * Returns all defenders (element_type === 2, strictly excluding goalkeepers) for a team
+ */
+export const getTeamDefenderNames = (teamId: number): Set<string> => {
+  const defenderNames = new Set<string>();
+  Object.values(playersCache).forEach((p: any) => {
+    if (typeof p === 'object' && p.team === teamId && p.element_type === 2) {
+      if (p.web_name) {
+        defenderNames.add(p.web_name.toLowerCase());
+      }
+    }
+  });
+  return defenderNames;
+};
+
+/**
  * Official FPL Scoring calculator based on position
  */
 export const calculateEventPoints = (
