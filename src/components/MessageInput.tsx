@@ -311,59 +311,61 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       )}
 
       {/* Main Chat Input Bar */}
-      <div className="flex items-center gap-2 bg-discord-chat rounded-2xl px-3.5 py-2 border border-discord-border/50 focus-within:border-discord-blurple transition-all shadow-inner">
+      <div className="flex items-center gap-1.5 bg-discord-chat rounded-2xl px-3 py-1.5 border border-discord-border/50 focus-within:border-discord-blurple transition-all shadow-inner w-full max-w-full overflow-hidden">
         <input
           ref={inputRef}
           type="text"
           value={text}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          placeholder={`Message #${channelName}... (use @ to mention)`}
-          className="flex-1 bg-transparent text-sm text-discord-white placeholder-discord-muted focus:outline-hidden"
+          placeholder={`Message #${channelName}...`}
+          className="flex-1 min-w-0 bg-transparent text-sm text-discord-white placeholder-discord-muted focus:outline-hidden pr-1"
         />
 
-        {/* Poll Creator Button */}
-        {onSendPoll && (
+        <div className="flex items-center gap-0.5 shrink-0">
+          {/* Poll Creator Button */}
+          {onSendPoll && (
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('light');
+                setShowPollModal(true);
+              }}
+              className="p-1.5 text-discord-muted hover:text-purple-400 hover:bg-discord-card rounded-lg transition-colors shrink-0"
+              title="Create Gameweek Poll"
+            >
+              <BarChart2 className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Emoji Button */}
           <button
             type="button"
             onClick={() => {
               triggerHaptic('light');
-              setShowPollModal(true);
+              setShowEmojiPicker(!showEmojiPicker);
             }}
-            className="p-1 text-discord-muted hover:text-purple-400 hover:bg-discord-card rounded-lg transition-colors"
-            title="Create Gameweek Poll"
+            className="p-1.5 text-discord-muted hover:text-white hover:bg-discord-card rounded-lg transition-colors shrink-0"
+            title="Insert Emoji"
           >
-            <BarChart2 className="w-5 h-5" />
+            <Smile className="w-4 h-4" />
           </button>
-        )}
 
-        {/* Emoji Button */}
-        <button
-          type="button"
-          onClick={() => {
-            triggerHaptic('light');
-            setShowEmojiPicker(!showEmojiPicker);
-          }}
-          className="p-1 text-discord-muted hover:text-white hover:bg-discord-card rounded-lg transition-colors"
-          title="Insert Emoji"
-        >
-          <Smile className="w-5 h-5" />
-        </button>
-
-        {/* Send Button */}
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={!text.trim()}
-          className={`p-1.5 rounded-xl transition-all ${
-            text.trim()
-              ? 'bg-discord-blurple text-white shadow-md active:scale-95'
-              : 'text-discord-muted/40 cursor-not-allowed'
-          }`}
-          title="Send Message"
-        >
-          <Send className="w-4 h-4" />
-        </button>
+          {/* Send Button */}
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!text.trim()}
+            className={`p-1.5 rounded-xl transition-all shrink-0 flex items-center justify-center ${
+              text.trim()
+                ? 'bg-discord-blurple text-white shadow-md active:scale-95'
+                : 'text-discord-muted/40 cursor-not-allowed'
+            }`}
+            title="Send Message"
+          >
+            <Send className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );

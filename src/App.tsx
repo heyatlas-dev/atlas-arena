@@ -25,8 +25,12 @@ import {
 import { fplBot } from './services/fplBotService';
 import { transferBot } from './services/transferBotService';
 import { ManagerSquadModal } from './components/ManagerSquadModal';
+import { LiveFixturesModal } from './components/LiveFixturesModal';
 import { notificationService } from './services/notificationService';
 import { realtimeChat } from './services/realtimeChatService';
+import { checkForAppUpdates, ReleaseInfo } from './services/updateService';
+import { gameweekRecap } from './services/gameweekRecapService';
+import { Sparkles, X } from 'lucide-react';
 
 export const App: React.FC = () => {
   // --- One-time clean-up of legacy mock data & corrupt "Player 123" cache ---
@@ -177,11 +181,22 @@ export const App: React.FC = () => {
   const [addLeagueOpen, setAddLeagueOpen] = useState(false);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [battleRivalId, setBattleRivalId] = useState<string>('');
+  const [availableUpdate, setAvailableUpdate] = useState<ReleaseInfo | null>(null);
+  const [fixturesModalOpen, setFixturesModalOpen] = useState(false);
   const [viewingSquadMember, setViewingSquadMember] = useState<{
     entryId: number;
     managerName: string;
     teamName: string;
   } | null>(null);
+
+  // Check for newer APK releases on GitHub
+  useEffect(() => {
+    checkForAppUpdates().then((update) => {
+      if (update) {
+        setAvailableUpdate(update);
+      }
+    });
+  }, []);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -599,6 +614,26 @@ export const App: React.FC = () => {
     );
   };
 
+  // Trigger Gameweek Awards Ceremony in #banter
+  const handleTriggerRecap = (force = true) => {
+    const activeGw = gwInfo?.recentGwId || getCachedGameweekState()?.recentGwId || 10;
+    const recapMsg = gameweekRecap.generateRecap(currentLeague.id, members, activeGw, force);
+    if (recapMsg) {
+      setMessages((prev) => [...prev, recapMsg]);
+      realtimeChat.postMessage(
+        currentLeague.id,
+        recapMsg.channel,
+        recapMsg.sender_id,
+        recapMsg.sender_name,
+        recapMsg.content,
+        undefined,
+        recapMsg.embed_data,
+        true,
+        recapMsg.id
+      );
+    }
+  };
+
   // Import FPL League
   const handleLeagueImported = (newLeague: League, newMembers: LeagueMember[]) => {
     setLeagues((prev) => {
@@ -624,6 +659,33 @@ export const App: React.FC = () => {
           isOpen={showOnboarding}
           onComplete={handleOnboardingComplete}
         />
+
+        {/* In-App Auto-Update Notification Banner */}
+        {availableUpdate && (
+          <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-3 py-1.5 flex items-center justify-between text-xs font-bold z-40 select-none shadow-md shrink-0">
+            <div className="flex items-center gap-1.5 truncate pr-2">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0 animate-pulse" />
+              <span className="truncate">New ATLAS Arena {availableUpdate.tagName} available!</span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <a
+                href={availableUpdate.downloadUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="px-2 py-0.5 rounded-md bg-white text-emerald-900 font-extrabold text-[11px] shadow-xs hover:bg-slate-100"
+              >
+                Update Now
+              </a>
+              <button
+                type="button"
+                onClick={() => setAvailableUpdate(null)}
+                className="p-1 text-white/80 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Top Header Bar */}
         <TopBar
@@ -653,6 +715,7 @@ export const App: React.FC = () => {
         <GameweekTicker
           gwInfo={gwInfo}
           onOpenPoll={() => setActiveChannel('banter')}
+          onOpenFixtures={() => setFixturesModalOpen(true)}
         />
 
         {/* Main Channel Content */}
@@ -721,6 +784,13 @@ export const App: React.FC = () => {
                     className="w-full text-left p-2 rounded-xl bg-discord-darkest hover:bg-discord-card border border-discord-border/60 text-xs text-discord-light hover:text-white transition-colors"
                   >
                     🎯 "Need a major differential haul this gameweek"
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerRecap(true)}
+                    className="w-full text-left p-2 rounded-xl bg-purple-950/40 hover:bg-purple-900/50 border border-purple-500/40 text-xs text-purple-200 transition-colors"
+                  >
+                    🏆 "Announce Gameweek Awards Ceremony"
                   </button>
                 </div>
               </div>
@@ -804,6 +874,14 @@ export const App: React.FC = () => {
               setViewingSquadMember(null);
             }
           }}
+        />
+
+        {/* Live Premier League Fixtures & On-Pitch Radar Modal */}
+        <LiveFixturesModal
+          isOpen={fixturesModalOpen}
+          onClose={() => setFixturesModalOpen(false)}
+          gwId={gwInfo?.recentGwId || 10}
+          members={members}
         />
       </div>
     </div>

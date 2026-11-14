@@ -706,3 +706,46 @@ export const fetchLeagueStandings = async (
     throw err;
   }
 };
+
+export interface FPLFixtureInfo {
+  id: number;
+  event: number;
+  kickoff_time: string;
+  started: boolean;
+  finished: boolean;
+  finished_provisional: boolean;
+  team_h: number;
+  team_a: number;
+  team_h_score: number | null;
+  team_a_score: number | null;
+  minutes: number;
+  home_team_name: string;
+  away_team_name: string;
+}
+
+export const fetchGameweekFixtures = async (gwId: number): Promise<FPLFixtureInfo[]> => {
+  try {
+    const url = `https://fantasy.premierleague.com/api/fixtures/?event=${gwId}`;
+    const data = await safeFplFetch<any[]>(url);
+    if (!data || !Array.isArray(data)) return [];
+
+    return data.map((fix) => ({
+      id: fix.id,
+      event: fix.event,
+      kickoff_time: fix.kickoff_time,
+      started: Boolean(fix.started),
+      finished: Boolean(fix.finished),
+      finished_provisional: Boolean(fix.finished_provisional),
+      team_h: fix.team_h,
+      team_a: fix.team_a,
+      team_h_score: fix.team_h_score,
+      team_a_score: fix.team_a_score,
+      minutes: fix.minutes || 0,
+      home_team_name: getTeamNameById(fix.team_h),
+      away_team_name: getTeamNameById(fix.team_a),
+    }));
+  } catch (e) {
+    console.warn('Failed to fetch gameweek fixtures:', e);
+    return [];
+  }
+};
