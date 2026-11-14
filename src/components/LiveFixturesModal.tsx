@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { X, Radio, Clock, RefreshCw, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Radio, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { FPLFixtureInfo, fetchGameweekFixtures } from '../services/fplService';
-import { LeagueMember } from '../types';
 import { ClubCrest } from './ClubCrest';
 import { triggerHaptic } from '../services/haptics';
 
@@ -9,37 +8,51 @@ interface LiveFixturesModalProps {
   isOpen: boolean;
   onClose: () => void;
   gwId: number;
-  members: LeagueMember[];
 }
 
 export const LiveFixturesModal: React.FC<LiveFixturesModalProps> = ({
   isOpen,
   onClose,
   gwId,
-  members,
 }) => {
   const [selectedGw, setSelectedGw] = useState<number>(gwId);
   const [fixtures, setFixtures] = useState<FPLFixtureInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'live' | 'upcoming'>('all');
+  const timerRef = useRef<any>(null);
 
-  // Update selectedGw whenever gwId prop changes
   useEffect(() => {
     setSelectedGw(gwId);
   }, [gwId]);
 
-  const loadFixtures = (targetGw: number) => {
-    setLoading(true);
+  const loadFixtures = (targetGw: number, showFullSpinner = false) => {
+    if (showFullSpinner) setLoading(true);
+    setIsRefreshing(true);
+
     fetchGameweekFixtures(targetGw).then((res) => {
       setFixtures(res);
       setLoading(false);
+      setIsRefreshing(false);
     });
   };
 
   useEffect(() => {
-    if (isOpen) {
-      loadFixtures(selectedGw);
+    if (!isOpen) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
     }
+
+    loadFixtures(selectedGw, true);
+
+    // Auto-update every 15 seconds during live matchdays
+    timerRef.current = setInterval(() => {
+      loadFixtures(selectedGw, false);
+    }, 15000);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, [isOpen, selectedGw]);
 
   if (!isOpen) return null;
@@ -49,6 +62,8 @@ export const LiveFixturesModal: React.FC<LiveFixturesModalProps> = ({
     if (filter === 'upcoming') return !f.started;
     return true;
   });
+
+  const liveCount = fixtures.filter((f) => f.started && !f.finished).length;
 
   const handlePrevGw = () => {
     if (selectedGw > 1) {
@@ -64,73 +79,39 @@ export const LiveFixturesModal: React.FC<LiveFixturesModalProps> = ({
     }
   };
 
-  // Helper to find which managers in our mini-league have players in this fixture
-  const getActiveManagersInFixture = (homeTeam: string, awayTeam: string) => {
-    const managersWithAssets: { managerName: string; isCaptain: boolean }[] = [];
-    const hLower = homeTeam.toLowerCase();
-    const aLower = awayTeam.toLowerCase();
-
-    members.forEach((m) => {
-      const captainInMatch = Boolean(
-        m.captain_name && (hLower.includes(m.captain_name.toLowerCase()) || aLower.includes(m.captain_name.toLowerCase()))
-      );
-
-      const matchedAssets = (m.assets || []).filter(
-        (asset) => hLower.includes(asset.toLowerCase()) || aLower.includes(asset.toLowerCase())
-      );
-
-      if (matchedAssets.length > 0 || captainInMatch) {
-        managersWithAssets.push({
-          managerName: m.manager_name,
-          isCaptain: captainInMatch,
-        });
-      }
-    });
-
-    return managersWithAssets;
+  // Format kickoff day & time (e.g., Sat 15:00)
+  const formatKickoff = (isoString: string) => {
+    try {
+      const d = new Date(isoString);
+      const day = d.toLocaleDateString(undefined, { weekday: 'short' });
+      const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      return `${day} ${time}`;
+    } catch {
+      return '';
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in duration-150">
-      <div className="w-full max-w-lg bg-discord-darkest rounded-2xl border border-discord-border/80 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-        {/* Header with Gameweek Stepper */}
-        <div className="px-4 py-3 bg-gradient-to-r from-discord-card via-discord-darker to-discord-darkest flex items-center justify-between border-b border-discord-border/50 shrink-0">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 animate-in fade-in duration-150">
+      <div className="w-full max-w-md bg-discord-darkest rounded-2xl border border-discord-border shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+        {/* Top Header */}
+        <div className="px-4 py-3 bg-discord-darker border-b border-discord-border/60 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <Radio className="w-4 h-4 text-rose-500 animate-pulse" />
-            <div className="flex items-center gap-1.5 bg-discord-darkest rounded-lg px-2 py-0.5 border border-discord-border/60">
-              <button
-                type="button"
-                onClick={handlePrevGw}
-                disabled={selectedGw <= 1}
-                className="p-0.5 text-discord-muted hover:text-white disabled:opacity-30"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="font-extrabold text-xs text-white tracking-wide">
-                Gameweek {selectedGw}
-              </span>
-              <button
-                type="button"
-                onClick={handleNextGw}
-                disabled={selectedGw >= 38}
-                className="p-0.5 text-discord-muted hover:text-white disabled:opacity-30"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+            <Radio className={`w-4 h-4 ${liveCount > 0 ? 'text-rose-500 animate-pulse' : 'text-discord-muted'}`} />
+            <h3 className="font-extrabold text-sm text-white tracking-wide">Premier League Fixtures</h3>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => {
                 triggerHaptic('light');
-                loadFixtures(selectedGw);
+                loadFixtures(selectedGw, false);
               }}
-              title="Refresh Fixtures"
+              title="Refresh Scores"
               className="p-1.5 text-discord-muted hover:text-white rounded-lg transition-colors"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-discord-blurple' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-discord-cyan' : ''}`} />
             </button>
             <button
               type="button"
@@ -140,42 +121,69 @@ export const LiveFixturesModal: React.FC<LiveFixturesModalProps> = ({
               }}
               className="p-1.5 text-discord-muted hover:text-white rounded-lg transition-colors"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
+        {/* Gameweek Stepper Controls */}
+        <div className="px-4 py-2 bg-discord-chat flex items-center justify-between border-b border-discord-border/40 shrink-0">
+          <button
+            type="button"
+            onClick={handlePrevGw}
+            disabled={selectedGw <= 1}
+            className="p-1 text-discord-muted hover:text-white disabled:opacity-25 transition-colors rounded-lg flex items-center gap-1 text-xs font-semibold"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>GW {selectedGw - 1}</span>
+          </button>
+
+          <span className="font-black text-sm text-white uppercase tracking-wider bg-discord-darker px-3 py-1 rounded-full border border-discord-border/60 shadow-inner">
+            Gameweek {selectedGw}
+          </span>
+
+          <button
+            type="button"
+            onClick={handleNextGw}
+            disabled={selectedGw >= 38}
+            className="p-1 text-discord-muted hover:text-white disabled:opacity-25 transition-colors rounded-lg flex items-center gap-1 text-xs font-semibold"
+          >
+            <span>GW {selectedGw + 1}</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
         {/* Filter Pills */}
-        <div className="flex items-center gap-2 px-4 py-2 bg-discord-darker border-b border-discord-border/30 text-xs font-bold shrink-0">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-discord-darkest border-b border-discord-border/30 text-xs font-bold shrink-0">
           <button
             type="button"
             onClick={() => setFilter('all')}
-            className={`px-3 py-1 rounded-lg transition-colors ${
+            className={`flex-1 py-1 rounded-lg text-center transition-all ${
               filter === 'all'
-                ? 'bg-discord-blurple text-white'
+                ? 'bg-discord-card text-white shadow-xs'
                 : 'text-discord-muted hover:text-white'
             }`}
           >
-            All Matches ({fixtures.length})
+            All ({fixtures.length})
           </button>
           <button
             type="button"
             onClick={() => setFilter('live')}
-            className={`px-3 py-1 rounded-lg transition-colors flex items-center gap-1 ${
+            className={`flex-1 py-1 rounded-lg text-center transition-all flex items-center justify-center gap-1 ${
               filter === 'live'
-                ? 'bg-rose-600 text-white'
+                ? 'bg-rose-600/30 text-rose-300 border border-rose-500/40 shadow-xs'
                 : 'text-discord-muted hover:text-white'
             }`}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />
-            <span>Live Now</span>
+            {liveCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />}
+            <span>Live ({liveCount})</span>
           </button>
           <button
             type="button"
             onClick={() => setFilter('upcoming')}
-            className={`px-3 py-1 rounded-lg transition-colors ${
+            className={`flex-1 py-1 rounded-lg text-center transition-all ${
               filter === 'upcoming'
-                ? 'bg-discord-blurple text-white'
+                ? 'bg-discord-card text-white shadow-xs'
                 : 'text-discord-muted hover:text-white'
             }`}
           >
@@ -183,105 +191,104 @@ export const LiveFixturesModal: React.FC<LiveFixturesModalProps> = ({
           </button>
         </div>
 
-        {/* Fixtures List */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
-          {filteredFixtures.length === 0 ? (
-            <div className="p-8 text-center text-xs text-discord-muted">
-              {loading ? 'Loading official Premier League fixtures...' : 'No fixtures found for the selected filter.'}
+        {/* Fixtures List - Modern Scoreboard Cards */}
+        <div className="flex-1 overflow-y-auto p-2.5 space-y-2">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 text-discord-muted text-xs">
+              <RefreshCw className="w-5 h-5 animate-spin mb-2 text-discord-cyan" />
+              <span>Fetching live Premier League scores...</span>
+            </div>
+          ) : filteredFixtures.length === 0 ? (
+            <div className="py-12 text-center text-xs text-discord-muted">
+              No matches found for this filter.
             </div>
           ) : (
             filteredFixtures.map((fix) => {
-              const activeManagers = getActiveManagersInFixture(fix.home_team_name, fix.away_team_name);
               const isLive = fix.started && !fix.finished;
-              const formattedTime = new Date(fix.kickoff_time).toLocaleDateString(undefined, {
-                weekday: 'short',
-                hour: '2-digit',
-                minute: '2-digit',
-              });
+              const isFinished = fix.finished;
+              const isUpcoming = !fix.started;
 
               return (
                 <div
                   key={fix.id}
-                  className={`p-3 rounded-xl border transition-all ${
+                  className={`rounded-xl border p-2.5 transition-all ${
                     isLive
-                      ? 'bg-gradient-to-r from-rose-950/20 via-discord-darker to-discord-darkest border-rose-500/40 shadow-sm'
-                      : 'bg-discord-darker border-discord-border/50 hover:border-discord-border'
+                      ? 'bg-gradient-to-r from-rose-950/20 via-discord-darker to-discord-darkest border-rose-500/50 shadow-md'
+                      : 'bg-discord-darker/90 border-discord-border/60 hover:border-discord-border'
                   }`}
                 >
-                  {/* Match Header */}
-                  <div className="flex items-center justify-between text-xs mb-2">
-                    <div className="flex items-center gap-1 font-bold">
-                      {isLive ? (
-                        <span className="flex items-center gap-1 text-rose-400 font-mono text-[11px] bg-rose-500/20 px-2 py-0.5 rounded-full border border-rose-500/40">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-                          {fix.minutes}' LIVE
-                        </span>
-                      ) : fix.finished ? (
-                        <span className="text-discord-muted font-mono text-[10px] bg-discord-card px-2 py-0.5 rounded-full">
-                          FULL TIME
-                        </span>
-                      ) : (
-                        <span className="text-amber-300 font-mono text-[10px] bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20 flex items-center gap-1">
-                          <Clock className="w-2.5 h-2.5" />
-                          {formattedTime}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Scoreline */}
-                  <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 py-1">
-                    {/* Home Team */}
-                    <div className="flex items-center justify-end gap-2 text-right">
-                      <span className="font-bold text-xs text-white truncate">{fix.home_team_name}</span>
-                      <ClubCrest teamName={fix.home_team_name} size="sm" />
-                    </div>
-
-                    {/* Score / VS Badge */}
-                    <div className="px-3 py-1 rounded-lg bg-discord-darkest border border-discord-border/60 text-center font-mono font-black text-sm text-white shrink-0 shadow-inner">
-                      {fix.started ? (
-                        <span>
-                          {fix.team_h_score ?? 0} - {fix.team_a_score ?? 0}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-discord-muted">VS</span>
-                      )}
-                    </div>
-
-                    {/* Away Team */}
-                    <div className="flex items-center justify-start gap-2 text-left">
-                      <ClubCrest teamName={fix.away_team_name} size="sm" />
-                      <span className="font-bold text-xs text-white truncate">{fix.away_team_name}</span>
-                    </div>
-                  </div>
-
-                  {/* "On Pitch" Radar for Mini-League Managers */}
-                  <div className="mt-2.5 pt-2 border-t border-discord-border/40 text-[11px]">
-                    <div className="flex items-center gap-1 text-discord-muted text-[10px] uppercase font-bold tracking-wider mb-1">
-                      <Users className="w-3 h-3 text-discord-blurple" />
-                      <span>League Assets in this match</span>
-                    </div>
-                    {activeManagers.length === 0 ? (
-                      <span className="text-discord-muted text-[10px] italic">
-                        No managers have active Starting XI assets in this clash
-                      </span>
-                    ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {activeManagers.map((am, i) => (
+                  <div className="flex items-center justify-between gap-3">
+                    {/* Teams Column (Home & Away Stacked, Flashscore-Style) */}
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      {/* Home Team */}
+                      <div className="flex items-center justify-between gap-2 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0 pr-1">
+                          <ClubCrest teamName={fix.home_team_name} size="xs" />
                           <span
-                            key={i}
-                            className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${
-                              am.isCaptain
-                                ? 'bg-amber-400/15 text-amber-300 border-amber-400/40'
-                                : 'bg-discord-card text-discord-light border-discord-border/40'
+                            className={`font-bold text-xs truncate ${
+                              isFinished && (fix.team_h_score ?? 0) > (fix.team_a_score ?? 0)
+                                ? 'text-white'
+                                : isFinished
+                                ? 'text-discord-light'
+                                : 'text-white'
                             }`}
                           >
-                            @{am.managerName}
-                            {am.isCaptain && ' 👑(C)'}
+                            {fix.home_team_name}
                           </span>
-                        ))}
+                        </div>
+                        {fix.started && (
+                          <span className="font-mono font-black text-sm text-white shrink-0">
+                            {fix.team_h_score ?? 0}
+                          </span>
+                        )}
                       </div>
-                    )}
+
+                      {/* Away Team */}
+                      <div className="flex items-center justify-between gap-2 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0 pr-1">
+                          <ClubCrest teamName={fix.away_team_name} size="xs" />
+                          <span
+                            className={`font-bold text-xs truncate ${
+                              isFinished && (fix.team_a_score ?? 0) > (fix.team_h_score ?? 0)
+                                ? 'text-white'
+                                : isFinished
+                                ? 'text-discord-light'
+                                : 'text-white'
+                            }`}
+                          >
+                            {fix.away_team_name}
+                          </span>
+                        </div>
+                        {fix.started && (
+                          <span className="font-mono font-black text-sm text-white shrink-0">
+                            {fix.team_a_score ?? 0}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Status Box Column */}
+                    <div className="flex flex-col items-center justify-center pl-3 border-l border-discord-border/50 shrink-0 w-20">
+                      {isLive ? (
+                        <div className="flex flex-col items-center">
+                          <span className="flex items-center gap-1 font-mono font-black text-xs text-rose-400 bg-rose-500/20 px-2 py-0.5 rounded-full border border-rose-500/40">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                            {fix.minutes}'
+                          </span>
+                          <span className="text-[9px] font-bold text-rose-400 uppercase tracking-wider mt-1">
+                            LIVE
+                          </span>
+                        </div>
+                      ) : isFinished ? (
+                        <span className="text-[10px] font-mono font-bold text-discord-muted bg-discord-card px-2 py-0.5 rounded-md">
+                          FT
+                        </span>
+                      ) : (
+                        <div className="text-center font-mono text-[11px] font-bold text-amber-300">
+                          {formatKickoff(fix.kickoff_time)}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

@@ -876,7 +876,7 @@ export const App: React.FC = () => {
           }}
         />
 
-        {/* Live Premier League Fixtures & On-Pitch Radar Modal */}
+        {/* Live Premier League Fixtures Modal */}
         <LiveFixturesModal
           isOpen={fixturesModalOpen}
           onClose={() => setFixturesModalOpen(false)}
@@ -885,7 +885,6 @@ export const App: React.FC = () => {
               ? gwInfo.upcomingGwId
               : gwInfo?.recentGwId || 10
           }
-          members={members}
         />
       </div>
     </div>
